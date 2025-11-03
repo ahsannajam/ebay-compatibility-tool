@@ -15,69 +15,72 @@ const PORT = process.env.PORT || 3000;
 const EBAY_AUTH_TOKEN = process.env.EBAY_AUTH_TOKEN;
 const EBAY_API_ENDPOINT = 'https://api.ebay.com/sell/metadata/v1/compatibilities/get_multi_compatibility_property_values';
 const EBAY_MARKETPLACE_ID = 'EBAY_MOTORS_US';
-const DEFAULT_CATEGORY_ID = '33560'; // Stored as a constant for clarity
+// Changed default category ID to match the new use case, if the frontend doesn't provide it
+const DEFAULT_CATEGORY_ID = '179679'; 
 
 // --- Helper Functions ---
 
 /**
  * Generates a single HTML table row (<tr>) from compatibility data.
+ * NOTE: Updated to extract Make and Model details from the API response.
  * @param {object} compatibility - A single compatibility item from the API response.
- * @param {object} baseFilters - The Make/Model/Year used in the original request.
  * @returns {string} The HTML string for a table row.
  */
-function createTableRow(compatibility, baseFilters) {
-    // Using Object.fromEntries to create the details object is a modern, clean approach
+function createTableRow(compatibility) {
+    // Using Object.fromEntries to create the details object
     const details = Object.fromEntries(
         compatibility.compatibilityDetails.map(detail => [detail.propertyName, detail.propertyValue])
     );
 
-    // Defaulting to empty strings for missing data improves stability
-    const year = details.Year || baseFilters.Year?.propertyValue || '';
-    const make = baseFilters.Make?.propertyValue || '';
-    const model = baseFilters.Model?.propertyValue || '';
-    const trim = details.Trim || '';
-    const engine = details.Engine || '';
-    const notes = details.Notes || '';
+    // Extracting the new properties requested by the user
+    const year = details.Year || '';
+    const make = details.Make || '';
+    const model = details.Model || '';
+    const notes = details.Notes || ''; // Notes property is assumed to be retrieved if available
 
+    // Removed Trim and Engine fields from the table row
     return `
 <tr>
 <td data-label="Year">${year}</td>
 <td data-label="Make">${make}</td>
 <td data-label="Model">${model}</td>
-<td data-label="Trim">${trim}</td>
-<td data-label="Engine">${engine}</td>
 <td data-label="Notes">${notes}</td>
 </tr>`;
 }
 
 /**
  * Generates the complete HTML table structure.
+ * NOTE: Updated to display relevant headers (Make/Model).
  * @param {Array} responseData - The array of compatibility objects.
- * @param {object} baseFilters - The filters used for the API call.
+ * @param {object} baseFilters - The filters used for the API call (primarily Year in this case).
  * @returns {string} The complete HTML table string.
  */
 function generateCompatibilityTable(responseData, baseFilters) {
-    const displayMake = baseFilters.Make?.propertyValue || 'Vehicle';
+    // Determine which year(s) were requested for the heading
+    const requestedYears = baseFilters.Year 
+        ? (Array.isArray(baseFilters.Year.propertyValue) 
+           ? baseFilters.Year.propertyValue.join(', ') 
+           : baseFilters.Year.propertyValue)
+        : 'Unknown Year(s)';
 
     if (!responseData || responseData.length === 0) {
-        return `<p>No compatibility data found for ${displayMake}.</p>`;
+        return `<p>No compatibility data found for ${requestedYears}.</p>`;
     }
 
-    // Use .map().join('') for efficient and cleaner list processing instead of string concatenation
+    // Use .map().join('') for efficient and cleaner list processing
     const rowsHTML = responseData.map(compatibility =>
-        createTableRow(compatibility, baseFilters)
+        // Passing null for baseFilters in createTableRow as we are getting all data from the response
+        createTableRow(compatibility) 
     ).join('');
 
     return `
-<h2>Compatibility Results for ${displayMake}</h2>
+<h2>Compatibility Results for Year(s): ${requestedYears}</h2>
 <table class="responsive-table">
 <thead>
 <tr>
 <th>Year</th>
 <th>Make</th>
 <th>Model</th>
-<th>Trim</th>
-<th>Engine</th>
 <th>Notes</th>
 </tr>
 </thead>
@@ -91,14 +94,14 @@ ${rowsHTML}
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public'))); // Serve static files correctly
+app.use(express.static(path.join(__dirname, 'public')));
 
 
 /**
  * POST /api/get-compatibilities: Proxies the request to the eBay API and returns an HTML table.
  */
 app.post('/api/get-compatibilities', async (req, res) => {
-    // ⚠️ Enhanced Security Check: Use 401 if token is missing
+    // ⚠️ Security Check: Use 401 if token is missing
     if (!EBAY_AUTH_TOKEN) {
         console.error("Authentication Error: eBay Token is not configured in environment variables.");
         return res.status(401).send('<p style="color: red;">Authentication Error: Server is missing required eBay credentials.</p>');
@@ -110,12 +113,21 @@ app.post('/api/get-compatibilities', async (req, res) => {
     // Use a robust method to create the baseFilters object, accounting for null/undefined
     const baseFilters = (propertyFilters || []).reduce((acc, filter) => {
         if (filter && filter.propertyName) {
-            acc[filter.propertyName] = filter;
+            // Group multiple propertyValues into an array if Year is multi-selected
+            if (acc[filter.propertyName]) {
+                 if (!Array.isArray(acc[filter.propertyName].propertyValue)) {
+                     acc[filter.propertyName].propertyValue = [acc[filter.propertyName].propertyValue];
+                 }
+                 acc[filter.propertyName].propertyValue.push(filter.propertyValue);
+            } else {
+                 acc[filter.propertyName] = filter;
+            }
         }
         return acc;
     }, {});
 
     const requestBody = {
+        // Use the categoryId passed from the frontend, or the new default
         categoryId: categoryId || DEFAULT_CATEGORY_ID, 
         propertyFilters: propertyFilters,
         propertyNames: propertyNames
@@ -130,33 +142,21 @@ app.post('/api/get-compatibilities', async (req, res) => {
 
     try {
         const response = await axios.post(EBAY_API_ENDPOINT, requestBody, { headers });
+        // Pass baseFilters to extract Year(s) for the heading
         const htmlTable = generateCompatibilityTable(response.data.compatibilities, baseFilters);
         
-        // Use res.send() which automatically sets the Content-Type header (likely text/html here)
         res.send(htmlTable); 
         
     } catch (error) {
-        // Consolidated and clearer error logging
         if (error.response) {
             console.error(`eBay API Response Error (${error.response.status}):`, JSON.stringify(error.response.data, null, 2));
         } else {
             console.error('eBay API Request Error:', error.message);
         }
         
-        // Return 502 Bad Gateway if the upstream API (eBay) failed, 
-        // which is often more semantically accurate than a 500.
         res.status(502).send('<p style="color: red;">Failed to retrieve data from the eBay API. Please try again later.</p>');
     }
 });
 
-// 🟢 Vercel Export: This is the entry point for Vercel's serverless function.
 module.exports = app;
-
-// Local Development Server Listen (Optional for Vercel, but kept for local testing)
-/*
-if (process.env.NODE_ENV !== 'production') {
-    app.listen(PORT, () => {
-        console.log(`Server running on http://localhost:${PORT}`);
-    });
-}
-*/
+// Local Development Server Listen (omitted for brevity)
