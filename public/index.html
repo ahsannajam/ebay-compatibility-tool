@@ -141,6 +141,67 @@
     </div>
 
     <script>
+        const yearSelect = document.getElementById('year');
+const makeSelect = document.getElementById('make');
+const modelSelect = document.getElementById('model');
+
+// Load Makes when Year changes
+yearSelect.addEventListener('change', async () => {
+    const year = yearSelect.value;
+    makeSelect.innerHTML = '<option value="">Loading...</option>';
+    modelSelect.innerHTML = '<option value="">Select Model</option>';
+
+    if (!year) return;
+
+    try {
+        const res = await fetch('/api/get-makes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ year })
+        });
+        const data = await res.json();
+
+        makeSelect.innerHTML = '<option value="">Select Make</option>';
+        data.makes.forEach(make => {
+            const option = document.createElement('option');
+            option.value = make;
+            option.textContent = make;
+            makeSelect.appendChild(option);
+        });
+    } catch (err) {
+        makeSelect.innerHTML = '<option value="">Error loading makes</option>';
+        console.error('Error loading makes:', err);
+    }
+});
+
+// Load Models when Make changes
+makeSelect.addEventListener('change', async () => {
+    const year = yearSelect.value;
+    const make = makeSelect.value;
+    modelSelect.innerHTML = '<option value="">Loading...</option>';
+
+    if (!year || !make) return;
+
+    try {
+        const res = await fetch('/api/get-models', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ year, make })
+        });
+        const data = await res.json();
+
+        modelSelect.innerHTML = '<option value="">Select Model</option>';
+        data.models.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model;
+            option.textContent = model;
+            modelSelect.appendChild(option);
+        });
+    } catch (err) {
+        modelSelect.innerHTML = '<option value="">Error loading models</option>';
+        console.error('Error loading models:', err);
+    }
+});
         document.getElementById('compatibilityForm').addEventListener('submit', async function(event) {
             event.preventDefault(); // Prevent default form submission
 
