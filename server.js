@@ -163,6 +163,91 @@ app.post('/api/get-compatibilities', async (req, res) => {
     }
 });
 
+/**
+ * GET available Makes for a specific Year
+ */
+app.post('/api/get-makes', async (req, res) => {
+    const { year } = req.body;
+
+    if (!EBAY_AUTH_TOKEN) {
+        return res.status(401).json({ error: 'Missing eBay Token' });
+    }
+
+    if (!year) {
+        return res.status(400).json({ error: 'Year is required' });
+    }
+
+    try {
+        const response = await axios.post(
+            'https://api.ebay.com/sell/metadata/v1/compatibilities/get_compatibility_property_values',
+            {
+                categoryId: DEFAULT_CATEGORY_ID,
+                propertyFilters: [{ propertyName: 'Year', propertyValue: year }],
+                propertyName: 'Make'
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${EBAY_AUTH_TOKEN}`,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-EBAY-C-MARKETPLACE-ID': EBAY_MARKETPLACE_ID
+                }
+            }
+        );
+
+        const makes = response.data.propertyValues || [];
+        res.json({ makes });
+
+    } catch (error) {
+        console.error('Error fetching makes:', error.response?.data || error.message);
+        res.status(502).json({ error: 'Failed to fetch makes' });
+    }
+});
+
+/**
+ * GET available Models for a specific Year and Make
+ */
+app.post('/api/get-models', async (req, res) => {
+    const { year, make } = req.body;
+
+    if (!EBAY_AUTH_TOKEN) {
+        return res.status(401).json({ error: 'Missing eBay Token' });
+    }
+
+    if (!year || !make) {
+        return res.status(400).json({ error: 'Year and Make are required' });
+    }
+
+    try {
+        const response = await axios.post(
+            'https://api.ebay.com/sell/metadata/v1/compatibilities/get_compatibility_property_values',
+            {
+                categoryId: DEFAULT_CATEGORY_ID,
+                propertyFilters: [
+                    { propertyName: 'Year', propertyValue: year },
+                    { propertyName: 'Make', propertyValue: make }
+                ],
+                propertyName: 'Model'
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${EBAY_AUTH_TOKEN}`,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-EBAY-C-MARKETPLACE-ID': EBAY_MARKETPLACE_ID
+                }
+            }
+        );
+
+        const models = response.data.propertyValues || [];
+        res.json({ models });
+
+    } catch (error) {
+        console.error('Error fetching models:', error.response?.data || error.message);
+        res.status(502).json({ error: 'Failed to fetch models' });
+    }
+});
+
 
 // 🟢 Vercel Export: This is the entry point for Vercel's serverless function.
 module.exports = app;
