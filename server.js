@@ -253,10 +253,9 @@ app.post('/api/get-models', async (req, res) => {
 module.exports = app;
 
 // Local Development Server Listen (Optional for Vercel, but kept for local testing)
-/*
+
 if (process.env.NODE_ENV !== 'production') {
     app.listen(PORT, () => {
         console.log(`Server running on http://localhost:${PORT}`);
     });
 }
-*/

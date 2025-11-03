@@ -111,8 +111,10 @@
             <label for="year">Year (Single Select)</label>
             <select id="year" name="Year" required>
                 <option value="">Select Year</option>
+                <option value="2022">2022</option>
+                <option value="2023">2023</option>
+                <option value="2024">2024</option>
             </select>
-
         </div>
 
         <div class="form-group">
@@ -137,10 +139,11 @@
             <p>Select a vehicle and click "Find Compatibilities" to see the results.</p>
         </div>
     </div>
-
 <script>
+// --- Dynamically populate years 2001 → current year ---
 const yearSelect = document.getElementById('year');
 const currentYear = new Date().getFullYear();
+
 for (let year = currentYear; year >= 2001; year--) {
     const option = document.createElement('option');
     option.value = year;
@@ -148,8 +151,9 @@ for (let year = currentYear; year >= 2001; year--) {
     yearSelect.appendChild(option);
 }
 </script>
+
     <script>
-        const yearSelect = document.getElementById('year');
+        // const yearSelect = document.getElementById('year');
 const makeSelect = document.getElementById('make');
 const modelSelect = document.getElementById('model');
 
